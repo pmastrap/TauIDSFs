@@ -17,7 +17,7 @@ campaigns  = [
 
 class TauIDSFTool:
     
-    def __init__(self, year, id, wp='Tight', dm=False, emb=False,
+    def __init__(self, year, id, wp='Tight', dm=False, pTdm=False, emb=False,
                  otherVSlepWP=False, path=datapath, verbose=False):
         """Choose the IDs and WPs for SFs. For available tau IDs and WPs, check
         https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/mc102X_doc.html#Tau
@@ -33,8 +33,8 @@ class TauIDSFTool:
         self.extraUnc = None
         self.filename = None
         
-        if id in ['MVAoldDM2017v2','DeepTau2017v2p1VSjet']:
-          if dm: # DM-dependent SFs
+        if id in ['MVAoldDM2017v2','DeepTau2017v2p1VSjet', 'DeepTau2018v2p5VSjet']:
+          if dm and pTdm==False : # DM-dependent SFs
             if emb:
               if 'oldDM' in id:
                 raise IOError("Scale factors for embedded samples not available for ID '%s'!"%id)
@@ -49,11 +49,31 @@ class TauIDSFTool:
             self.DMs        = [0,1,10] if 'oldDM' in id else [0,1,10,11]
             self.getSFvsPT  = self.disabled
             self.getSFvsEta = self.disabled
+            self.getSFvsPTDM = self.disabled
             if otherVSlepWP:
               if emb:
                 self.extraUnc = 0.05
               else:
                 self.extraUnc = 0.03
+
+          #my addition
+          elif pTdm and dm==False: #pT-dependent but divided in DMs
+            fname = os.path.join(path,"TauID_SF_%s_%s.root"%(id,year))
+            file = ensureTFile(fname,verbose=verbose)
+            self.func         = { }
+            dms = [0,1,10,11]
+            for idm in dms: 
+                self.func['Nom_DM'+str(idm)]   = file.Get("%s_DM%s_cent"%(wp,idm))
+                self.func['Up_DM'+str(idm)]   = file.Get("%s_DM%s_up"%(wp,idm))
+                self.func['Down_DM'+str(idm)] = file.Get("%s_DM%s_down"%(wp,idm))
+            file.Close()
+            self.filename   = fname
+            self.getSFvsDM  = self.disabled
+            self.getSFvsEta = self.disabled
+            self.getSFvsPT  = self.disabled
+          #################################
+
+
           else: # pT-dependent SFs
             if emb:
               if 'oldDM' in id:
@@ -70,6 +90,7 @@ class TauIDSFTool:
             self.filename   = fname
             self.getSFvsDM  = self.disabled
             self.getSFvsEta = self.disabled
+            self.getSFvsPTDM = self.disabled
             if otherVSlepWP:
               if emb:
                 self.extraUnc = lambda pt: (0.05 if pt<100 else 0.15)
@@ -87,11 +108,22 @@ class TauIDSFTool:
             self.genmatches = [1,3] if any(s in id.lower() for s in ['ele','vse']) else [2,4]
             self.getSFvsPT  = self.disabled
             self.getSFvsDM  = self.disabled
+            self.getSFvsPTDM = self.disabled
         else:
           raise IOError("Did not recognize tau ID '%s'!"%id)
+
+    def getSFvsPTDM(self, idm, pt, genmatch=5, unc=None):
+        """Get tau ID SF vs. tau pT divided in DMs"""
+        if genmatch==5:
+          if unc==None:
+             return self.func["Nom_DM"+str(idm)].Eval(pt)
+          else:
+             return self.func[unc+"_DM"+str(idm)].Eval(pt)
+        return 1.0
+
     
-    def getSFvsPT(self, pt, genmatch=5, unc=None):
-        """Get tau ID SF vs. tau pT."""
+    def getSFvsPT(self, dm , pt, genmatch, unc=None):
+        """Get tau ID SF vs. tau pT divided in DMs"""
         if genmatch==5:
           if self.extraUnc:
             sf       = self.func[None].Eval(pt)
