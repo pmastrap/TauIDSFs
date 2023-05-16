@@ -10,13 +10,43 @@ start1 = time.time()
 def green(string,**kwargs): return "\x1b[0;32;40m%s\033[0m"%string
 
 def printSFTable(year,id,wp,vs='pt',emb=False,otherVSlepWP=False):
-  assert vs in ['pt','dm','eta'], "'vs' argument should be pt', 'dm' or 'eta'!"
+  assert vs in ['pt','highpt','dm','ptdm','eta'], "'vs' argument should be 'pt', 'dm', 'ptdm', or 'eta'!"
   dm = (vs=='dm')
   if emb and 'VSjet' not in id:
       print("SFs for ID '%s' not available for embedded samples. Skipping..."%id)
       return
-  sftool = TauIDSFTool(year,id,wp,dm=dm,emb=emb,otherVSlepWP=otherVSlepWP)
-  if vs=='pt':
+  sftool = TauIDSFTool(year,id,wp,dm=dm,emb=emb,otherVSlepWP=otherVSlepWP,highpT=(vs is 'highpt'))
+  if vs=='ptdm':
+      ptvals = [10,20,40,100,140,200]
+      dmvals = [0,1,5,6,10,11]
+      year_=year
+      if year_.startswith('UL'): year_=year_[2:]
+      uncerts=['uncert0','uncert1','syst_alleras','syst_%s' % year_, 'syst_dmX_%s' % year_]
+      for pt in ptvals:
+        print(">>> ")
+        print(">>> SF for %s WP of %s in %s with pT = %s GeV"%(wp,green(id),year,pt))
+        print(">>> ")
+        print(">>> %20s"%('var \ DM')+''.join("%9d"%dm for dm in dmvals))
+        print(">>> %20s"%("central") +''.join("%9.5f"%sftool.getSFvsDMandPT(pt,dm,5)    for dm in dmvals))
+        for u in uncerts: 
+    
+          print(">>> %20s"%(u+"_up")      +''.join("%9.5f"%sftool.getSFvsDMandPT(pt,dm,5,u.replace('dmX','dm%s' % dm)+'_up')   for dm in dmvals))
+          print(">>> %20s"%(u+"_down")    +''.join("%9.5f"%sftool.getSFvsDMandPT(pt,dm,5,u.replace('dmX','dm%s' % dm)+'_down') for dm in dmvals))
+        print(">>> ")
+  elif vs=='highpt':
+      ptvals = [50,100,150,200,300,400,500,1000]
+      uncerts=['stat','stat_bin1','stat_bin2','syst','extrap']
+      #uncerts=['uncert0','uncert1','syst_alleras','syst_%s' % year_, 'syst_dmX_%s' % year_]
+      print(">>> ")
+      print(">>> High pT SF for %s WP of %s in %s"%(wp,green(id),year))
+      print(">>> ")
+      print(">>> %15s"%('var \ pt')+''.join("%9.1f"%pt for pt in ptvals))
+      print(">>> %15s"%("central") +''.join("%9.5f"%sftool.getHighPTSFvsPT(pt,5)        for pt in ptvals))
+      for u in uncerts:
+        print(">>> %15s"%(u+"_up")      +''.join("%9.5f"%sftool.getHighPTSFvsPT(pt,5,u+"_up")        for pt in ptvals))
+        print(">>> %15s"%(u+"_down")    +''.join("%9.5f"%sftool.getHighPTSFvsPT(pt,5,u+"_down")      for pt in ptvals))
+      print(">>> ")
+  elif vs=='pt':
       ptvals = [10,20,21,25,26,30,31,35,40,50,70,100,200,500,600,700,800,1000,1500,2000,]
       print(">>> ")
       print(">>> SF for %s WP of %s in %s"%(wp,green(id),year))
@@ -93,21 +123,21 @@ if __name__ == "__main__":
   print(">>> ")
   print(">>> start test tau ID SF tool")
   
-  testIDTool   = True and False
+  testIDTool   = True #and False
   testTESTool  = True and False
-  testFESTool  = True #and False
+  testFESTool  = True and False
   emb          = True and False
   otherVSlepWP = True and False
   
   start2       = time.time()
   years        = [
-    '2016Legacy',
-    '2017ReReco',
-    '2018ReReco',
-    #'UL2016_preVFP',
-    #'UL2016_postVFP',
-    #'UL2017',
-    #'UL2018',
+    #'2016Legacy',
+    #'2017ReReco',
+    #'2018ReReco',
+    'UL2016_preVFP',
+    'UL2016_postVFP',
+    'UL2017',
+    'UL2018',
   ]
   tauIDs      = [
     #'MVAoldDM2017v2',
@@ -124,11 +154,11 @@ if __name__ == "__main__":
   WPs         = [
     #'Loose',
     'Medium',
-    #'Tight'
+    'Tight'
   ]
   for year in years:
     for id in tauIDs:
-      vslist = ['eta'] if any(s in id for s in ['anti','VSe','VSmu']) else ['pt','dm']
+      vslist = ['eta'] if any(s in id for s in ['anti','VSe','VSmu']) else (['pt','dm'] if emb else ['ptdm','highpt'])
       for vs in vslist:
         for wp in WPs:
           if 'antiMu' in id and wp=='Medium': continue
